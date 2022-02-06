@@ -82,7 +82,7 @@ defmodule Kaffy.ResourceAdmin do
     Utils.get_assigned_value_or_default(
       resource,
       :form_fields,
-      ResourceSchema.form_fields(schema)
+      ResourceSchema.form_fields(resource, schema)
     )
     |> set_default_field_options(schema)
   end
@@ -401,6 +401,26 @@ defmodule Kaffy.ResourceAdmin do
       :crud_actions,
       [:new, :show, :update, :delete],
       [conn],
+      false
+    )
+  end
+
+  def inserted_date_field(resource) do
+    Utils.get_assigned_value_or_default(
+      resource,
+      :inserted_date_field,
+      :inserted_at,
+      [],
+      false
+    )
+  end
+
+  def updated_date_field(resource) do
+    Utils.get_assigned_value_or_default(
+      resource,
+      :updated_date_field,
+      :updated_at,
+      [],
       false
     )
   end

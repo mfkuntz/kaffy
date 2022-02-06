@@ -30,19 +30,27 @@ defmodule Kaffy.ResourceSchema do
     Keyword.drop(fields(schema), fields_to_be_removed(schema))
   end
 
-  def form_fields(schema) do
+  def form_fields(resource, schema) do
+    created_date_field = Kaffy.ResourceAdmin.inserted_date_field(resource)
+    updated_date_field = Kaffy.ResourceAdmin.updated_date_field(resource)
+
     to_be_removed =
-      fields_to_be_removed(schema) ++ [primary_key(schema), :inserted_at, :updated_at]
+      fields_to_be_removed(schema) ++
+        [primary_key(schema), created_date_field, updated_date_field]
 
     Keyword.drop(fields(schema), to_be_removed)
   end
 
   def cast_fields(schema) do
+    created_date_field = Kaffy.ResourceAdmin.inserted_date_field(schema)
+    updated_date_field = Kaffy.ResourceAdmin.updated_date_field(schema)
+
     to_be_removed =
       fields_to_be_removed(schema) ++
         get_has_many_associations(schema) ++
         get_has_one_assocations(schema) ++
-        get_many_to_many_associations(schema) ++ [primary_key(schema), :inserted_at, :updated_at]
+        get_many_to_many_associations(schema) ++
+        [primary_key(schema), created_date_field, updated_date_field]
 
     Keyword.drop(fields(schema), to_be_removed)
   end

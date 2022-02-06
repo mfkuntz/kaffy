@@ -49,7 +49,7 @@ defmodule Kaffy.ResourceForm do
         opts
       end
 
-    pk = Kaffy.ResourceSchema.primary_key_value(@conn, changeset.data)
+    pk = Kaffy.ResourceSchema.primary_key_value(nil, changeset.data)
 
     permission =
       case is_nil(pk) do
