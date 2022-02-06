@@ -394,4 +394,14 @@ defmodule Kaffy.ResourceAdmin do
       false
     )
   end
+
+  def crud_actions(resource, conn) do
+    Utils.get_assigned_value_or_default(
+      resource,
+      :crud_actions,
+      [:new, :show, :update, :delete],
+      [conn],
+      false
+    )
+  end
 end
