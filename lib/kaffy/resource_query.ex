@@ -52,7 +52,8 @@ defmodule Kaffy.ResourceQuery do
 
   def fetch_resource(conn, resource, id) do
     schema = resource[:schema]
-    query = from(s in schema, where: s.id == ^id)
+    pk = Kaffy.ResourceSchema.singular_pk(schema)
+    query = from(s in schema, where: field(s, ^pk) == ^id)
 
     case Kaffy.ResourceAdmin.custom_show_query(conn, resource, query) do
       {custom_query, opts} -> Kaffy.Utils.repo().one(custom_query, opts)

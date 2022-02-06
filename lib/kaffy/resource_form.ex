@@ -49,8 +49,10 @@ defmodule Kaffy.ResourceForm do
         opts
       end
 
+    pk = Kaffy.ResourceSchema.primary_key_value(@conn, changeset.data)
+
     permission =
-      case is_nil(changeset.data.id) do
+      case is_nil(pk) do
         true -> Map.get(options, :create, :editable)
         false -> Map.get(options, :update, :editable)
       end
