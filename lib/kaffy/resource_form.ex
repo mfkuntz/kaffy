@@ -286,12 +286,11 @@ defmodule Kaffy.ResourceForm do
       true ->
         assoc = Kaffy.ResourceSchema.association_schema(schema, field_no_id)
         option_count = Kaffy.ResourceQuery.cached_total_count(assoc, true, assoc)
+        target_context = Kaffy.Utils.get_context_for_schema(conn, assoc)
+        target_resource = Kaffy.Utils.get_schema_key(conn, target_context, assoc)
 
         case option_count > 100 do
           true ->
-            target_context = Kaffy.Utils.get_context_for_schema(conn, assoc)
-            target_resource = Kaffy.Utils.get_schema_key(conn, target_context, assoc)
-
             content_tag :div, class: "input-group" do
               [
                 number_input(form, field,
@@ -343,12 +342,19 @@ defmodule Kaffy.ResourceForm do
                 false -> elem(popular_strings, 0)
               end
 
-            select(
-              form,
-              field,
-              Enum.map(options, fn o -> {Map.get(o, string_field, "Resource ##{o.id}"), o.id} end),
-              class: "custom-select"
-            )
+            [
+              {:safe, ~s(<div>)},
+              select(
+                form,
+                field,
+                Enum.map(options, fn o ->
+                  {Map.get(o, string_field, "Resource ##{o.id}"), o.id}
+                end),
+                class: "custom-select"
+              ),
+              render_link(conn, target_context, target_resource, hd(options)),
+              {:safe, "</div>"}
+            ]
         end
 
       false ->
@@ -424,5 +430,28 @@ defmodule Kaffy.ResourceForm do
           [label_tag, field_tag, field_feeback]
         end
     end
+  end
+
+  defp render_link(conn, target_context, target_resource, model) do
+    pk = Kaffy.ResourceSchema.primary_key_value(conn, model)
+
+    text = "View #{target_resource} #{pk}"
+
+    [
+      content_tag :div, style: "margin-top: 0.5rem;" do
+        link(
+          content_tag(:i, text, class: ""),
+          to:
+            Kaffy.Utils.router().kaffy_resource_path(
+              conn,
+              :show,
+              target_context,
+              target_resource,
+              pk
+            ),
+          id: "link-target-#{pk}"
+        )
+      end
+    ]
   end
 end
