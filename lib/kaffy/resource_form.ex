@@ -113,13 +113,13 @@ defmodule Kaffy.ResourceForm do
       :id ->
         case Kaffy.ResourceSchema.primary_key(schema) == [field] do
           true -> text_input(form, field, opts)
-          false -> text_or_assoc(conn, schema, form, field, opts)
+          false -> text_or_assoc(conn, schema, data, form, field, opts)
         end
 
       :binary_id ->
         case Kaffy.ResourceSchema.primary_key(schema) == [field] do
           true -> text_input(form, field, opts)
-          false -> text_or_assoc(conn, schema, form, field, opts)
+          false -> text_or_assoc(conn, schema, data, form, field, opts)
         end
 
       :string ->
@@ -269,7 +269,7 @@ defmodule Kaffy.ResourceForm do
     ]
   end
 
-  defp text_or_assoc(conn, schema, form, field, opts) do
+  defp text_or_assoc(conn, schema, data, form, field, opts) do
     actual_assoc =
       Enum.filter(Kaffy.ResourceSchema.associations(schema), fn a ->
         Kaffy.ResourceSchema.association(schema, a).owner_key == field
@@ -291,30 +291,35 @@ defmodule Kaffy.ResourceForm do
 
         case option_count > 100 do
           true ->
-            content_tag :div, class: "input-group" do
+            content_tag :div do
               [
-                number_input(form, field,
-                  class: "form-control",
-                  id: field,
-                  aria_describedby: field
-                ),
-                content_tag :div, class: "input-group-append" do
-                  content_tag :span, class: "input-group-text", id: field do
-                    link(content_tag(:i, "", class: "fas fa-search"),
-                      to:
-                        Kaffy.Utils.router().kaffy_resource_path(
-                          conn,
-                          :index,
-                          target_context,
-                          target_resource,
-                          c: conn.params["context"],
-                          r: conn.params["resource"],
-                          pick: field
-                        ),
-                      id: "pick-raw-resource"
-                    )
-                  end
-                end
+                content_tag :div, class: "input-group" do
+                  [
+                    number_input(form, field,
+                      class: "form-control",
+                      id: field,
+                      aria_describedby: field
+                    ),
+                    content_tag :div, class: "input-group-append" do
+                      content_tag :span, class: "input-group-text", id: field do
+                        link(content_tag(:i, "", class: "fas fa-search"),
+                          to:
+                            Kaffy.Utils.router().kaffy_resource_path(
+                              conn,
+                              :index,
+                              target_context,
+                              target_resource,
+                              c: conn.params["context"],
+                              r: conn.params["resource"],
+                              pick: field
+                            ),
+                          id: "pick-raw-resource"
+                        )
+                      end
+                    end
+                  ]
+                end,
+                render_link(conn, target_context, target_resource, nil, Map.get(data, field))
               ]
             end
 
@@ -435,6 +440,10 @@ defmodule Kaffy.ResourceForm do
   defp render_link(conn, target_context, target_resource, model) do
     pk = Kaffy.ResourceSchema.primary_key_value(conn, model)
 
+    render_link(conn, target_context, target_resource, model, pk)
+  end
+
+  defp render_link(conn, target_context, target_resource, _model, pk) do
     text = "View #{target_resource} #{pk}"
 
     [
