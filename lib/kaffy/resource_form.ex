@@ -411,29 +411,39 @@ defmodule Kaffy.ResourceForm do
         ft.render_form(conn, changeset, form, field, options)
 
       false ->
-        {error_msg, error_class} = get_field_error(changeset, field)
-        help_text = form_help_text({field, options})
+        case Map.has_key?(options, :render_field) do
+          true ->
+            options.render_field.(conn, changeset, form, field, options)
 
-        content_tag :div, class: "form-group #{error_class}" do
-          label_tag = if ft != :boolean, do: form_label(form, {field, options}), else: ""
-
-          field_tag =
-            form_field(changeset, form, {field, options},
-              class: "form-control #{error_class}",
-              conn: conn
-            )
-
-          field_feeback = [
-            content_tag :div, class: "invalid-feedback" do
-              error_msg
-            end,
-            content_tag :p, class: "help_text" do
-              help_text
-            end
-          ]
-
-          [label_tag, field_tag, field_feeback]
+          _ ->
+            kaffy_input_not_found(conn, ft, changeset, form, field, options)
         end
+    end
+  end
+
+  defp kaffy_input_not_found(conn, ft, changeset, form, field, options) do
+    {error_msg, error_class} = get_field_error(changeset, field)
+    help_text = form_help_text({field, options})
+
+    content_tag :div, class: "form-group #{error_class}" do
+      label_tag = if ft != :boolean, do: form_label(form, {field, options}), else: ""
+
+      field_tag =
+        form_field(changeset, form, {field, options},
+          class: "form-control #{error_class}",
+          conn: conn
+        )
+
+      field_feeback = [
+        content_tag :div, class: "invalid-feedback" do
+          error_msg
+        end,
+        content_tag :p, class: "help_text" do
+          help_text
+        end
+      ]
+
+      [label_tag, field_tag, field_feeback]
     end
   end
 
