@@ -49,8 +49,10 @@ defmodule Kaffy.ResourceForm do
         opts
       end
 
+    pk = Kaffy.ResourceSchema.primary_key_value(nil, changeset.data)
+
     permission =
-      case is_nil(changeset.data.id) do
+      case is_nil(pk) do
         true -> Map.get(options, :create, :editable)
         false -> Map.get(options, :update, :editable)
       end
@@ -111,13 +113,13 @@ defmodule Kaffy.ResourceForm do
       :id ->
         case Kaffy.ResourceSchema.primary_key(schema) == [field] do
           true -> text_input(form, field, opts)
-          false -> text_or_assoc(conn, schema, form, field, opts)
+          false -> text_or_assoc(conn, schema, data, form, field, opts)
         end
 
       :binary_id ->
         case Kaffy.ResourceSchema.primary_key(schema) == [field] do
           true -> text_input(form, field, opts)
-          false -> text_or_assoc(conn, schema, form, field, opts)
+          false -> text_or_assoc(conn, schema, data, form, field, opts)
         end
 
       :string ->
@@ -267,7 +269,7 @@ defmodule Kaffy.ResourceForm do
     ]
   end
 
-  defp text_or_assoc(conn, schema, form, field, opts) do
+  defp text_or_assoc(conn, schema, data, form, field, opts) do
     actual_assoc =
       Enum.filter(Kaffy.ResourceSchema.associations(schema), fn a ->
         Kaffy.ResourceSchema.association(schema, a).owner_key == field
@@ -284,36 +286,40 @@ defmodule Kaffy.ResourceForm do
       true ->
         assoc = Kaffy.ResourceSchema.association_schema(schema, field_no_id)
         option_count = Kaffy.ResourceQuery.cached_total_count(assoc, true, assoc)
+        target_context = Kaffy.Utils.get_context_for_schema(conn, assoc)
+        target_resource = Kaffy.Utils.get_schema_key(conn, target_context, assoc)
 
         case option_count > 100 do
           true ->
-            target_context = Kaffy.Utils.get_context_for_schema(conn, assoc)
-            target_resource = Kaffy.Utils.get_schema_key(conn, target_context, assoc)
-
-            content_tag :div, class: "input-group" do
+            content_tag :div do
               [
-                number_input(form, field,
-                  class: "form-control",
-                  id: field,
-                  aria_describedby: field
-                ),
-                content_tag :div, class: "input-group-append" do
-                  content_tag :span, class: "input-group-text", id: field do
-                    link(content_tag(:i, "", class: "fas fa-search"),
-                      to:
-                        Kaffy.Utils.router().kaffy_resource_path(
-                          conn,
-                          :index,
-                          target_context,
-                          target_resource,
-                          c: conn.params["context"],
-                          r: conn.params["resource"],
-                          pick: field
-                        ),
-                      id: "pick-raw-resource"
-                    )
-                  end
-                end
+                content_tag :div, class: "input-group" do
+                  [
+                    number_input(form, field,
+                      class: "form-control",
+                      id: field,
+                      aria_describedby: field
+                    ),
+                    content_tag :div, class: "input-group-append" do
+                      content_tag :span, class: "input-group-text", id: field do
+                        link(content_tag(:i, "", class: "fas fa-search"),
+                          to:
+                            Kaffy.Utils.router().kaffy_resource_path(
+                              conn,
+                              :index,
+                              target_context,
+                              target_resource,
+                              c: conn.params["context"],
+                              r: conn.params["resource"],
+                              pick: field
+                            ),
+                          id: "pick-raw-resource"
+                        )
+                      end
+                    end
+                  ]
+                end,
+                render_link(conn, target_context, target_resource, nil, Map.get(data, field))
               ]
             end
 
@@ -341,12 +347,19 @@ defmodule Kaffy.ResourceForm do
                 false -> elem(popular_strings, 0)
               end
 
-            select(
-              form,
-              field,
-              Enum.map(options, fn o -> {Map.get(o, string_field, "Resource ##{o.id}"), o.id} end),
-              class: "custom-select"
-            )
+            [
+              {:safe, ~s(<div>)},
+              select(
+                form,
+                field,
+                Enum.map(options, fn o ->
+                  {Map.get(o, string_field, "Resource ##{o.id}"), o.id}
+                end),
+                class: "custom-select"
+              ),
+              render_link(conn, target_context, target_resource, hd(options)),
+              {:safe, "</div>"}
+            ]
         end
 
       false ->
@@ -398,29 +411,66 @@ defmodule Kaffy.ResourceForm do
         ft.render_form(conn, changeset, form, field, options)
 
       false ->
-        {error_msg, error_class} = get_field_error(changeset, field)
-        help_text = form_help_text({field, options})
+        case Map.has_key?(options, :render_field) do
+          true ->
+            options.render_field.(conn, changeset, form, field, options)
 
-        content_tag :div, class: "form-group #{error_class}" do
-          label_tag = if ft != :boolean, do: form_label(form, {field, options}), else: ""
-
-          field_tag =
-            form_field(changeset, form, {field, options},
-              class: "form-control #{error_class}",
-              conn: conn
-            )
-
-          field_feeback = [
-            content_tag :div, class: "invalid-feedback" do
-              error_msg
-            end,
-            content_tag :p, class: "help_text" do
-              help_text
-            end
-          ]
-
-          [label_tag, field_tag, field_feeback]
+          _ ->
+            kaffy_input_not_found(conn, ft, changeset, form, field, options)
         end
     end
+  end
+
+  defp kaffy_input_not_found(conn, ft, changeset, form, field, options) do
+    {error_msg, error_class} = get_field_error(changeset, field)
+    help_text = form_help_text({field, options})
+
+    content_tag :div, class: "form-group #{error_class}" do
+      label_tag = if ft != :boolean, do: form_label(form, {field, options}), else: ""
+
+      field_tag =
+        form_field(changeset, form, {field, options},
+          class: "form-control #{error_class}",
+          conn: conn
+        )
+
+      field_feeback = [
+        content_tag :div, class: "invalid-feedback" do
+          error_msg
+        end,
+        content_tag :p, class: "help_text" do
+          help_text
+        end
+      ]
+
+      [label_tag, field_tag, field_feeback]
+    end
+  end
+
+  defp render_link(conn, target_context, target_resource, model) do
+    pk = Kaffy.ResourceSchema.primary_key_value(conn, model)
+
+    render_link(conn, target_context, target_resource, model, pk)
+  end
+
+  defp render_link(conn, target_context, target_resource, _model, pk) do
+    text = "View #{target_resource} #{pk}"
+
+    [
+      content_tag :div, style: "margin-top: 0.5rem;" do
+        link(
+          content_tag(:i, text, class: ""),
+          to:
+            Kaffy.Utils.router().kaffy_resource_path(
+              conn,
+              :show,
+              target_context,
+              target_resource,
+              pk
+            ),
+          id: "link-target-#{pk}"
+        )
+      end
+    ]
   end
 end
